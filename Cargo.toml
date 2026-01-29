@@ -1,0 +1,18 @@
+[package]
+name = "test_stubs"
+description = "Generate `todo!()` stubs in testing mode for trait methods without default implementations"
+repository = "https://github.com/softdevteam/vob/"
+authors = ["Laurence Tratt <laurie@tratt.net>"]
+readme = "README.md"
+version = "0.1.0"
+license = "Apache-2.0/MIT"
+categories = ["development-tools"]
+edition = "2024"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "2", features = ["full"] }
