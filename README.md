@@ -40,8 +40,10 @@ without a default implementation.
 
 ## Limitations
 
-There are limitation to what `test_stubs` can do. Specifically, Rust's type inference isn't
-always happy with just `todo!()`. For example this code will not compile:
+There are limitation to what `test_stubs` can do.
+
+For example, Rust's type inference isn't always happy with just `todo!()`. This code will not
+compile:
 
 ```text
 trait T {
@@ -51,7 +53,7 @@ trait T {
 ```
 
 There is no generic solution to this. `test_stubs` knows about some common types and will
-generate code when possible. For a type such as the above it will generate:
+generate code for them. For a type such as the above it will generate:
 
 ```text
 trait T {
@@ -62,3 +64,6 @@ trait T {
 
 When `test_stubs` has no specific knowledge about a type, it will simply generate `todo!()` and
 hope.
+
+If a trait method takes `self` (rather than `&self`), `test_stubs` will add a `where Self: Sized`
+constraint to the `#[cfg(test)]` method.
