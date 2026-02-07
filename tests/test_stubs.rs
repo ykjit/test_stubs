@@ -21,6 +21,15 @@ fn simplet() {
     assert_eq!(s.y(8), 8);
 }
 
+#[test]
+#[should_panic(expected = "not yet implemented: x")]
+fn name_of_fn() {
+    struct S;
+    impl SimpleT for S {}
+
+    S.x();
+}
+
 // `impl Iterator`
 #[test_stubs]
 trait IterT {

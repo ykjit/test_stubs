@@ -5,8 +5,9 @@
 /// This library provides a proc macro attribute `test_stubs` which can be attached to traits: for
 /// each method in the trait without a default implementation, two variants will be created, one
 /// for `#[cfg(not(test))]` and one for `#[cfg(test)]`. The latter will have a stubbed method body
-/// containing just `todo!()`, allowing tests to implement the trait without having to manually
-/// implement each method.
+/// containing just `todo!("<method name>")`, allowing tests to implement the trait without having
+/// to manually implement each method. If that method is then called, it will `todo` and tell the
+/// user which method needs to be implemented.
 ///
 /// Roughly speaking, given the following Rust source file:
 ///
@@ -28,7 +29,7 @@
 ///   fn g(&self);
 ///
 ///   #[cfg(test)]
-///   fn g(&self) { todo!() }
+///   fn g(&self) { todo!("g") }
 /// }
 /// ```
 ///
@@ -46,7 +47,7 @@
 /// ```text
 /// trait T {
 ///   #[cfg(test)]
-///   fn f() -> impl Iterator<...> { todo!() }
+///   fn f() -> impl Iterator<...> { todo!("f") }
 /// }
 /// ```
 ///
@@ -56,7 +57,7 @@
 /// ```text
 /// trait T {
 ///   #[cfg(test)]
-///   fn f() -> impl Iterator<...> { todo!() as std::iter::Empty<_> }
+///   fn f() -> impl Iterator<...> { todo!("f") as std::iter::Empty<_> }
 /// }
 /// ```
 ///
@@ -123,9 +124,12 @@ pub fn test_stubs(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     }
                 }
 
+                let name = meth.sig.ident.to_string();
                 let stubexpr = match &meth.sig.output {
-                    ReturnType::Default => quote! { todo!() },
-                    ReturnType::Type(_, ty) => stub_expr_for_ty(ty),
+                    ReturnType::Default => {
+                        quote! { todo!(#name) }
+                    }
+                    ReturnType::Type(_, ty) => stub_expr_for_ty(ty, &name),
                 };
                 meth.default = Some(syn::parse_quote!({ #stubexpr }));
 
@@ -157,28 +161,31 @@ fn is_self_sized_pred(pred: &WherePredicate) -> bool {
     }
 }
 
-/// Recursively generate a stub expression for a type `ty`. For example for:
+/// Recursively generate a stub expression for a type `ty` in method `name`. For example for:
 /// ```text
 /// (u32, impl Iterator<...>, Option<impl Iterator<...>>)
 /// ```
 /// this will create a stub along the lines of:
 /// ```text
-/// (todo!(), todo!() as std::iter::Empty<_>, Some(todo!() as std::iter::Empty<_>)
+/// (
+///   todo!("<name>"),
+///   todo!("<name>") as std::iter::Empty<_>,
+///   Some(todo!("<name>") as std::iter::Empty<_>)
 /// ```
 ///
 /// As that suggests, this method special cases certain types. When
-fn stub_expr_for_ty(ty: &Type) -> proc_macro2::TokenStream {
+fn stub_expr_for_ty(ty: &Type, name: &str) -> proc_macro2::TokenStream {
     match ty {
         Type::ImplTrait(TypeImplTrait { bounds, .. }) => {
             // Just `todo!()` for a type `impl X` doesn't work.
             if bounds.iter().any(|x| {
                 matches!(x, TypeParamBound::Trait(t) if t.path.segments.last().unwrap().ident == "Iterator")
             }) {
-                quote! { todo!() as std::iter::Empty<_> }
+                quote! { todo!(#name) as std::iter::Empty<_> }
             } else {
                 // What can we do for arbitrary `impl` types? Just outputting `todo!()` is unlikely
                 // to satisfy type inference.
-                quote! { todo!() }
+                quote! { todo!(#name) }
             }
         }
         Type::Path(ty_p) => {
@@ -193,7 +200,7 @@ fn stub_expr_for_ty(ty: &Type) -> proc_macro2::TokenStream {
                             _ => None,
                         })
                         .unwrap();
-                    let stub = stub_expr_for_ty(outerty);
+                    let stub = stub_expr_for_ty(outerty, name);
                     // We special case certain common types where we are easily able to create
                     // expressions / variants that, even with deeply nested types, will satisfy
                     // type inference.
@@ -201,16 +208,16 @@ fn stub_expr_for_ty(ty: &Type) -> proc_macro2::TokenStream {
                         "Box" => quote! { Box::new(#stub) },
                         "Option" => quote! { Some(#stub) },
                         "Result" => quote! { Ok(#stub) },
-                        _ => quote! { todo!() },
+                        _ => quote! { todo!(#name) },
                     }
                 }
-                _ => quote! { todo!() },
+                _ => quote! { todo!(#name) },
             }
         }
         Type::Tuple(x) => {
-            let elems: Vec<_> = x.elems.iter().map(stub_expr_for_ty).collect();
+            let elems: Vec<_> = x.elems.iter().map(|x| stub_expr_for_ty(x, name)).collect();
             quote! { (#(#elems),*) }
         }
-        _ => quote! { todo!() },
+        _ => quote! { todo!(#name) },
     }
 }
