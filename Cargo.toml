@@ -1,7 +1,7 @@
 [package]
 name = "test_stubs"
 description = "Generate `todo!()` stubs in testing mode for trait methods without default implementations"
-repository = "https://github.com/softdevteam/vob/"
+repository = "https://github.com/ykjit/test_stubs/"
 authors = ["Laurence Tratt <laurie@tratt.net>"]
 readme = "README.md"
 version = "0.1.0"
